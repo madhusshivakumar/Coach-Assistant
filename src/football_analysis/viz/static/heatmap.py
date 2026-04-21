@@ -18,11 +18,7 @@ def plot_player_heatmap(
 ) -> Figure:
     """Render a KDE heatmap of a single player's on-ball action start locations."""
     t = theme or DEFAULT_THEME
-    subset = events[
-        (events["player_id"] == player_id)
-        & events["start_x"].notna()
-        & events["start_y"].notna()
-    ]
+    subset = events[(events["player_id"] == player_id) & events["start_x"].notna() & events["start_y"].notna()]
 
     pitch = Pitch(
         pitch_type="custom",
@@ -34,11 +30,16 @@ def plot_player_heatmap(
 
     if len(subset) >= 5:
         pitch.kdeplot(
-            subset["start_x"], subset["start_y"], ax=ax,
-            fill=True, levels=12, cmap=t.heat_cmap, alpha=0.7,
+            subset["start_x"],
+            subset["start_y"],
+            ax=ax,
+            fill=True,
+            levels=12,
+            cmap=t.heat_cmap,
+            alpha=0.7,
         )
     else:
         pitch.scatter(subset["start_x"], subset["start_y"], ax=ax, s=60, color=t.home)
 
     ax.set_title(title or f"Heatmap — player {player_id} ({len(subset)} actions)")
-    return fig
+    return fig  # type: ignore[no-any-return]

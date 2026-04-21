@@ -30,4 +30,4 @@ def plot_xt_surface(grid: XTGrid, title: str | None = None, theme: Theme | None 
     ax.contourf(xx, yy, grid.values, levels=20, cmap=t.xt_cmap, alpha=0.7, zorder=0.5)
 
     ax.set_title(title or f"Expected Threat surface ({grid.rows}x{grid.cols})")
-    return fig
+    return fig  # type: ignore[no-any-return]

@@ -16,7 +16,8 @@ st.caption(f"v{__version__}")
 matches = list_ingested_matches()
 st.metric("Ingested matches", len(matches))
 if matches.empty:
-    st.info("No matches ingested yet. Run `fa-data fetch` + `fa-data ingest` first, then open **Match Overview** from the sidebar.")
+    st.info("No matches ingested yet. Run `fa-data fetch` + `fa-data ingest` first.")
+    st.caption("Then open **Match Overview** from the sidebar.")
 else:
     st.success("Open **Match Overview** from the sidebar to explore an ingested match.")
-    st.dataframe(matches[["label", "match_id", "ingested_at"]], hide_index=True, use_container_width=True)
+    st.dataframe(matches[["label", "match_id", "ingested_at"]], hide_index=True)

@@ -39,13 +39,26 @@ def plot_shot_map(
 
     if not others.empty:
         pitch.scatter(
-            others["start_x"], others["start_y"], ax=ax,
-            s=80, color=t.away, alpha=0.75, edgecolors="black", label="shot",
+            others["start_x"],
+            others["start_y"],
+            ax=ax,
+            s=80,
+            color=t.away,
+            alpha=0.75,
+            edgecolors="black",
+            label="shot",
         )
     if not goals.empty:
         pitch.scatter(
-            goals["start_x"], goals["start_y"], ax=ax,
-            s=160, color=t.goal, edgecolors="black", linewidth=1.5, marker="*", label="goal",
+            goals["start_x"],
+            goals["start_y"],
+            ax=ax,
+            s=160,
+            color=t.goal,
+            edgecolors="black",
+            linewidth=1.5,
+            marker="*",
+            label="goal",
         )
 
     n_goals = len(goals)
@@ -53,4 +66,4 @@ def plot_shot_map(
     ax.set_title(title or f"Shots ({n_shots} total, {n_goals} goals)")
     if n_shots > 0:
         ax.legend(loc="upper left")
-    return fig
+    return fig  # type: ignore[no-any-return]

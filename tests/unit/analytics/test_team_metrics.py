@@ -14,8 +14,13 @@ from football_analysis.analytics.team.ppda import compute_ppda
 def _passes(team_id: str, xs: list[float]) -> list[dict]:
     return [
         {
-            "team_id": team_id, "action_type": "pass", "result": "success",
-            "start_x": x, "start_y": 34.0, "end_x": x + 5, "end_y": 34.0,
+            "team_id": team_id,
+            "action_type": "pass",
+            "result": "success",
+            "start_x": x,
+            "start_y": 34.0,
+            "end_x": x + 5,
+            "end_y": 34.0,
         }
         for x in xs
     ]
@@ -25,8 +30,13 @@ def _def_actions(team_id: str, xs: list[float]) -> list[dict]:
     # All defensive action types are valid presses
     return [
         {
-            "team_id": team_id, "action_type": "tackle", "result": "success",
-            "start_x": x, "start_y": 34.0, "end_x": None, "end_y": None,
+            "team_id": team_id,
+            "action_type": "tackle",
+            "result": "success",
+            "start_x": x,
+            "start_y": 34.0,
+            "end_x": None,
+            "end_y": None,
         }
         for x in xs
     ]

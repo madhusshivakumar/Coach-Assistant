@@ -15,15 +15,79 @@ def _synth_events() -> pd.DataFrame:
     return pd.DataFrame(
         [
             # Forward progression from own half to final third
-            {"action_type": "pass", "result": "success", "start_x": 30.0, "start_y": 34.0, "end_x": 70.0, "end_y": 34.0, "team_id": "A"},
-            {"action_type": "pass", "result": "success", "start_x": 70.0, "start_y": 34.0, "end_x": 95.0, "end_y": 34.0, "team_id": "A"},
-            {"action_type": "shot", "result": "success", "start_x": 100.0, "start_y": 34.0, "end_x": None, "end_y": None, "team_id": "A"},
-            {"action_type": "pass", "result": "success", "start_x": 40.0, "start_y": 40.0, "end_x": 80.0, "end_y": 40.0, "team_id": "A"},
-            {"action_type": "shot", "result": "fail", "start_x": 90.0, "start_y": 40.0, "end_x": None, "end_y": None, "team_id": "A"},
-            {"action_type": "pass", "result": "success", "start_x": 60.0, "start_y": 34.0, "end_x": 90.0, "end_y": 34.0, "team_id": "A"},
-            {"action_type": "shot", "result": "fail", "start_x": 95.0, "start_y": 34.0, "end_x": None, "end_y": None, "team_id": "A"},
+            {
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 30.0,
+                "start_y": 34.0,
+                "end_x": 70.0,
+                "end_y": 34.0,
+                "team_id": "A",
+            },
+            {
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 70.0,
+                "start_y": 34.0,
+                "end_x": 95.0,
+                "end_y": 34.0,
+                "team_id": "A",
+            },
+            {
+                "action_type": "shot",
+                "result": "success",
+                "start_x": 100.0,
+                "start_y": 34.0,
+                "end_x": None,
+                "end_y": None,
+                "team_id": "A",
+            },
+            {
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 40.0,
+                "start_y": 40.0,
+                "end_x": 80.0,
+                "end_y": 40.0,
+                "team_id": "A",
+            },
+            {
+                "action_type": "shot",
+                "result": "fail",
+                "start_x": 90.0,
+                "start_y": 40.0,
+                "end_x": None,
+                "end_y": None,
+                "team_id": "A",
+            },
+            {
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 60.0,
+                "start_y": 34.0,
+                "end_x": 90.0,
+                "end_y": 34.0,
+                "team_id": "A",
+            },
+            {
+                "action_type": "shot",
+                "result": "fail",
+                "start_x": 95.0,
+                "start_y": 34.0,
+                "end_x": None,
+                "end_y": None,
+                "team_id": "A",
+            },
             # Incomplete moves (shouldn't add to transitions)
-            {"action_type": "pass", "result": "fail", "start_x": 50.0, "start_y": 20.0, "end_x": 60.0, "end_y": 20.0, "team_id": "A"},
+            {
+                "action_type": "pass",
+                "result": "fail",
+                "start_x": 50.0,
+                "start_y": 20.0,
+                "end_x": 60.0,
+                "end_y": 20.0,
+                "team_id": "A",
+            },
         ]
     )
 
@@ -99,8 +163,24 @@ def test_apply_xt_skips_rows_missing_coords() -> None:
     grid = fit(_synth_events())
     events = pd.DataFrame(
         [
-            {"action_type": "pass", "result": "success", "start_x": None, "start_y": None, "end_x": 60.0, "end_y": 34.0, "team_id": "A"},
-            {"action_type": "pass", "result": "success", "start_x": 30.0, "start_y": 34.0, "end_x": None, "end_y": None, "team_id": "A"},
+            {
+                "action_type": "pass",
+                "result": "success",
+                "start_x": None,
+                "start_y": None,
+                "end_x": 60.0,
+                "end_y": 34.0,
+                "team_id": "A",
+            },
+            {
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 30.0,
+                "start_y": 34.0,
+                "end_x": None,
+                "end_y": None,
+                "team_id": "A",
+            },
         ]
     )
     out = apply_xt(events, grid)

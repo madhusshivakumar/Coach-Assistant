@@ -40,33 +40,75 @@ def render(path: Path, out: Path) -> None:
     for _, r in passes.iterrows():
         color = "#1f77b4" if r["result"] == "success" else "#888"
         pitch.arrows(
-            r["start_x"], r["start_y"], r["end_x"], r["end_y"],
-            ax=ax, color=color, width=2, alpha=0.85,
-            headwidth=6, headlength=6, zorder=2,
+            r["start_x"],
+            r["start_y"],
+            r["end_x"],
+            r["end_y"],
+            ax=ax,
+            color=color,
+            width=2,
+            alpha=0.85,
+            headwidth=6,
+            headlength=6,
+            zorder=2,
         )
 
     dribbles = df[(df["action_type"] == "dribble") & df["end_x"].notna()]
     for _, r in dribbles.iterrows():
         pitch.arrows(
-            r["start_x"], r["start_y"], r["end_x"], r["end_y"],
-            ax=ax, color="#2ca02c", width=2, linestyle="--", alpha=0.9, zorder=2,
+            r["start_x"],
+            r["start_y"],
+            r["end_x"],
+            r["end_y"],
+            ax=ax,
+            color="#2ca02c",
+            width=2,
+            linestyle="--",
+            alpha=0.9,
+            zorder=2,
         )
 
     shots = df[df["action_type"] == "shot"]
     goals = shots[shots["result"] == "success"]
     others = shots[shots["result"] != "success"]
     if not others.empty:
-        pitch.scatter(others["start_x"], others["start_y"], ax=ax,
-                      s=90, color="#cc3344", edgecolors="black", zorder=3, label="shot")
+        pitch.scatter(
+            others["start_x"],
+            others["start_y"],
+            ax=ax,
+            s=90,
+            color="#cc3344",
+            edgecolors="black",
+            zorder=3,
+            label="shot",
+        )
     if not goals.empty:
-        pitch.scatter(goals["start_x"], goals["start_y"], ax=ax,
-                      s=180, color="#ffd54a", edgecolors="black", linewidth=1.5,
-                      marker="*", zorder=4, label="goal")
+        pitch.scatter(
+            goals["start_x"],
+            goals["start_y"],
+            ax=ax,
+            s=180,
+            color="#ffd54a",
+            edgecolors="black",
+            linewidth=1.5,
+            marker="*",
+            zorder=4,
+            label="goal",
+        )
 
     def_actions = df[df["action_type"].isin(["interception", "clearance", "tackle", "foul"])]
     if not def_actions.empty:
-        pitch.scatter(def_actions["start_x"], def_actions["start_y"], ax=ax,
-                      s=100, color="#555", marker="x", linewidth=2, zorder=3, label="def. action")
+        pitch.scatter(
+            def_actions["start_x"],
+            def_actions["start_y"],
+            ax=ax,
+            s=100,
+            color="#555",
+            marker="x",
+            linewidth=2,
+            zorder=3,
+            label="def. action",
+        )
 
     ax.set_title(
         f"Action map — {path.stem}  "

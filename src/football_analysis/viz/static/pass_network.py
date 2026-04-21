@@ -39,9 +39,7 @@ def plot_pass_network(
 
     # Build edges via successive same-team actions
     passes = team_events[
-        (team_events["action_type"] == "pass")
-        & (team_events["result"] == "success")
-        & team_events["player_id"].notna()
+        (team_events["action_type"] == "pass") & (team_events["result"] == "success") & team_events["player_id"].notna()
     ].copy()
     if passes.empty:
         return _empty_pitch(f"No successful passes — team {team_id}", theme=t)
@@ -49,9 +47,7 @@ def plot_pass_network(
     # Sort chronologically; receiver = next non-pass event by same team immediately after
     all_team_sorted = team_events.sort_values(["period", "time_seconds"]).reset_index(drop=True)
     player_by_idx = all_team_sorted["player_id"].tolist()
-    idx_map = {
-        row_id: i for i, row_id in enumerate(all_team_sorted.index)
-    }  # identity but kept for clarity
+    idx_map = {row_id: i for i, row_id in enumerate(all_team_sorted.index)}  # identity but kept for clarity
     del idx_map  # not needed — we use iloc order
     edges: dict[tuple[str, str], int] = {}
     for i, row in all_team_sorted.iterrows():
@@ -80,9 +76,14 @@ def plot_pass_network(
         if a not in pos.index or b not in pos.index:
             continue
         pitch.lines(
-            pos.loc[a, "start_x"], pos.loc[a, "start_y"],
-            pos.loc[b, "start_x"], pos.loc[b, "start_y"],
-            ax=ax, color=t.home, lw=max(0.5, w / 3.0), alpha=0.6,
+            pos.loc[a, "start_x"],
+            pos.loc[a, "start_y"],
+            pos.loc[b, "start_x"],
+            pos.loc[b, "start_y"],
+            ax=ax,
+            color=t.home,
+            lw=max(0.5, w / 3.0),
+            alpha=0.6,
         )
 
     # Draw nodes. Node area scales with touches but is clamped so a 60-touch midfielder
@@ -92,18 +93,29 @@ def plot_pass_network(
         max_touches = max(1, tc.max())
         sizes = [150 + 450 * (tc[p] / max_touches) for p in pos.index]
         pitch.scatter(
-            pos["start_x"], pos["start_y"], ax=ax,
-            s=sizes, color=t.home, edgecolors="black", zorder=3, alpha=0.85,
+            pos["start_x"],
+            pos["start_y"],
+            ax=ax,
+            s=sizes,
+            color=t.home,
+            edgecolors="black",
+            zorder=3,
+            alpha=0.85,
         )
         for p in pos.index:
             ax.annotate(
-                str(p)[-4:], xy=(pos.loc[p, "start_x"], pos.loc[p, "start_y"]),
-                ha="center", va="center", fontsize=8, color="white",
-                fontweight="bold", zorder=4,
+                str(p)[-4:],
+                xy=(pos.loc[p, "start_x"], pos.loc[p, "start_y"]),
+                ha="center",
+                va="center",
+                fontsize=8,
+                color="white",
+                fontweight="bold",
+                zorder=4,
             )
 
     ax.set_title(title or f"Pass network — team {team_id} ({sum(edges.values())} edges)")
-    return fig
+    return fig  # type: ignore[no-any-return]
 
 
 def _empty_pitch(msg: str, theme: Theme) -> Figure:
@@ -115,4 +127,4 @@ def _empty_pitch(msg: str, theme: Theme) -> Figure:
     )
     fig, ax = pitch.draw(figsize=(10, 7))
     ax.set_title(msg)
-    return fig
+    return fig  # type: ignore[no-any-return]

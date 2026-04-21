@@ -82,8 +82,7 @@ def render_all(match_id: str, out_dir: Path) -> dict:
     # Pass network per team
     for tid in team_ids:
         label = names.get(tid, tid)
-        fig = plot_pass_network(enriched, team_id=tid, min_passes_edge=5,
-                                title=f"Pass network — {label}")
+        fig = plot_pass_network(enriched, team_id=tid, min_passes_edge=5, title=f"Pass network — {label}")
         fig.savefig(out_dir / f"pass_network_{tid}.png", dpi=140, bbox_inches="tight")
         plt.close(fig)
 
@@ -107,8 +106,7 @@ def render_all(match_id: str, out_dir: Path) -> dict:
         ]
         # Heatmap for top player
         top_player = str(ranked.index[0])
-        fig = plot_player_heatmap(enriched, player_id=top_player,
-                                  title=f"Heatmap — player {top_player}")
+        fig = plot_player_heatmap(enriched, player_id=top_player, title=f"Heatmap — player {top_player}")
         fig.savefig(out_dir / f"heatmap_top_player_{top_player}.png", dpi=140, bbox_inches="tight")
         plt.close(fig)
 

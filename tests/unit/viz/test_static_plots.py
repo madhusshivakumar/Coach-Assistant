@@ -20,7 +20,7 @@ matplotlib.use("Agg")  # headless backend for CI
 
 
 @pytest.fixture(autouse=True)
-def close_figs() -> None:  # noqa: PT004 — autouse yield helper
+def close_figs():
     import matplotlib.pyplot as plt
 
     yield
@@ -30,20 +30,90 @@ def close_figs() -> None:  # noqa: PT004 — autouse yield helper
 def _events() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"team_id": "A", "player_id": "1", "action_type": "pass", "result": "success",
-             "start_x": 40.0, "start_y": 34.0, "end_x": 70.0, "end_y": 34.0, "period": 1, "time_seconds": 1.0},
-            {"team_id": "A", "player_id": "2", "action_type": "pass", "result": "success",
-             "start_x": 70.0, "start_y": 34.0, "end_x": 95.0, "end_y": 34.0, "period": 1, "time_seconds": 2.0},
-            {"team_id": "A", "player_id": "3", "action_type": "shot", "result": "success",
-             "start_x": 100.0, "start_y": 34.0, "end_x": 105.0, "end_y": 34.0, "period": 1, "time_seconds": 3.0},
-            {"team_id": "A", "player_id": "1", "action_type": "pass", "result": "fail",
-             "start_x": 50.0, "start_y": 30.0, "end_x": 60.0, "end_y": 40.0, "period": 1, "time_seconds": 4.0},
-            {"team_id": "B", "player_id": "10", "action_type": "shot", "result": "fail",
-             "start_x": 10.0, "start_y": 34.0, "end_x": 0.0, "end_y": 34.0, "period": 1, "time_seconds": 5.0},
-            {"team_id": "A", "player_id": "1", "action_type": "pass", "result": "success",
-             "start_x": 45.0, "start_y": 35.0, "end_x": 60.0, "end_y": 35.0, "period": 1, "time_seconds": 6.0},
-            {"team_id": "A", "player_id": "1", "action_type": "pass", "result": "success",
-             "start_x": 50.0, "start_y": 30.0, "end_x": 65.0, "end_y": 30.0, "period": 1, "time_seconds": 7.0},
+            {
+                "team_id": "A",
+                "player_id": "1",
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 40.0,
+                "start_y": 34.0,
+                "end_x": 70.0,
+                "end_y": 34.0,
+                "period": 1,
+                "time_seconds": 1.0,
+            },
+            {
+                "team_id": "A",
+                "player_id": "2",
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 70.0,
+                "start_y": 34.0,
+                "end_x": 95.0,
+                "end_y": 34.0,
+                "period": 1,
+                "time_seconds": 2.0,
+            },
+            {
+                "team_id": "A",
+                "player_id": "3",
+                "action_type": "shot",
+                "result": "success",
+                "start_x": 100.0,
+                "start_y": 34.0,
+                "end_x": 105.0,
+                "end_y": 34.0,
+                "period": 1,
+                "time_seconds": 3.0,
+            },
+            {
+                "team_id": "A",
+                "player_id": "1",
+                "action_type": "pass",
+                "result": "fail",
+                "start_x": 50.0,
+                "start_y": 30.0,
+                "end_x": 60.0,
+                "end_y": 40.0,
+                "period": 1,
+                "time_seconds": 4.0,
+            },
+            {
+                "team_id": "B",
+                "player_id": "10",
+                "action_type": "shot",
+                "result": "fail",
+                "start_x": 10.0,
+                "start_y": 34.0,
+                "end_x": 0.0,
+                "end_y": 34.0,
+                "period": 1,
+                "time_seconds": 5.0,
+            },
+            {
+                "team_id": "A",
+                "player_id": "1",
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 45.0,
+                "start_y": 35.0,
+                "end_x": 60.0,
+                "end_y": 35.0,
+                "period": 1,
+                "time_seconds": 6.0,
+            },
+            {
+                "team_id": "A",
+                "player_id": "1",
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 50.0,
+                "start_y": 30.0,
+                "end_x": 65.0,
+                "end_y": 30.0,
+                "period": 1,
+                "time_seconds": 7.0,
+            },
         ]
     )
 
@@ -86,22 +156,66 @@ def test_pass_network_renders(tmp_path: Path) -> None:
     t = 0.0
     # 5 passes player 1 -> player 2 (interleaved so "next event" is 2)
     for _ in range(5):
-        rows.append({"team_id": "A", "player_id": "1", "action_type": "pass", "result": "success",
-                     "start_x": 40.0, "start_y": 34.0, "end_x": 70.0, "end_y": 34.0, "period": 1,
-                     "time_seconds": t})
+        rows.append(
+            {
+                "team_id": "A",
+                "player_id": "1",
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 40.0,
+                "start_y": 34.0,
+                "end_x": 70.0,
+                "end_y": 34.0,
+                "period": 1,
+                "time_seconds": t,
+            }
+        )
         t += 1.0
-        rows.append({"team_id": "A", "player_id": "2", "action_type": "pass", "result": "success",
-                     "start_x": 70.0, "start_y": 34.0, "end_x": 80.0, "end_y": 34.0, "period": 1,
-                     "time_seconds": t})
+        rows.append(
+            {
+                "team_id": "A",
+                "player_id": "2",
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 70.0,
+                "start_y": 34.0,
+                "end_x": 80.0,
+                "end_y": 34.0,
+                "period": 1,
+                "time_seconds": t,
+            }
+        )
         t += 1.0
     # Add a self-pass (passer == receiver) to exercise the skip branch
-    rows.append({"team_id": "A", "player_id": "1", "action_type": "pass", "result": "success",
-                 "start_x": 40.0, "start_y": 34.0, "end_x": 50.0, "end_y": 34.0, "period": 1,
-                 "time_seconds": t})
+    rows.append(
+        {
+            "team_id": "A",
+            "player_id": "1",
+            "action_type": "pass",
+            "result": "success",
+            "start_x": 40.0,
+            "start_y": 34.0,
+            "end_x": 50.0,
+            "end_y": 34.0,
+            "period": 1,
+            "time_seconds": t,
+        }
+    )
     t += 1.0
-    rows.append({"team_id": "A", "player_id": "1", "action_type": "pass", "result": "success",
-                 "start_x": 50.0, "start_y": 34.0, "end_x": 60.0, "end_y": 34.0, "period": 1,
-                 "time_seconds": t})
+    rows.append(
+        {
+            "team_id": "A",
+            "player_id": "1",
+            "action_type": "pass",
+            "result": "success",
+            "start_x": 50.0,
+            "start_y": 34.0,
+            "end_x": 60.0,
+            "end_y": 34.0,
+            "period": 1,
+            "time_seconds": t,
+        }
+    )
 
     fig = plot_pass_network(pd.DataFrame(rows), team_id="A", min_passes_edge=2)
     _assert_fig_writes(fig, tmp_path)
@@ -112,10 +226,30 @@ def test_pass_network_drops_below_edge_threshold(tmp_path: Path) -> None:
     from football_analysis.viz.static.pass_network import plot_pass_network
 
     rows = [
-        {"team_id": "A", "player_id": "1", "action_type": "pass", "result": "success",
-         "start_x": 40.0, "start_y": 34.0, "end_x": 70.0, "end_y": 34.0, "period": 1, "time_seconds": 1.0},
-        {"team_id": "A", "player_id": "2", "action_type": "pass", "result": "success",
-         "start_x": 70.0, "start_y": 34.0, "end_x": 80.0, "end_y": 34.0, "period": 1, "time_seconds": 2.0},
+        {
+            "team_id": "A",
+            "player_id": "1",
+            "action_type": "pass",
+            "result": "success",
+            "start_x": 40.0,
+            "start_y": 34.0,
+            "end_x": 70.0,
+            "end_y": 34.0,
+            "period": 1,
+            "time_seconds": 1.0,
+        },
+        {
+            "team_id": "A",
+            "player_id": "2",
+            "action_type": "pass",
+            "result": "success",
+            "start_x": 70.0,
+            "start_y": 34.0,
+            "end_x": 80.0,
+            "end_y": 34.0,
+            "period": 1,
+            "time_seconds": 2.0,
+        },
     ]
     fig = plot_pass_network(pd.DataFrame(rows), team_id="A", min_passes_edge=100)
     _assert_fig_writes(fig, tmp_path)
@@ -150,9 +284,16 @@ def test_player_heatmap_with_many_actions(tmp_path: Path) -> None:
     # Create 20 actions for player 1 to trigger KDE branch
     rows = [
         {
-            "team_id": "A", "player_id": "1", "action_type": "pass", "result": "success",
-            "start_x": 40.0 + i, "start_y": 34.0 + (i % 5), "end_x": None, "end_y": None,
-            "period": 1, "time_seconds": float(i),
+            "team_id": "A",
+            "player_id": "1",
+            "action_type": "pass",
+            "result": "success",
+            "start_x": 40.0 + i,
+            "start_y": 34.0 + (i % 5),
+            "end_x": None,
+            "end_y": None,
+            "period": 1,
+            "time_seconds": float(i),
         }
         for i in range(20)
     ]

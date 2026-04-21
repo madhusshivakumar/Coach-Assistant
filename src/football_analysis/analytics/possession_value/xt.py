@@ -105,9 +105,7 @@ def fit(events: pd.DataFrame, rows: int = 12, cols: int = 16, max_iter: int = 10
             break
         xt = xt_new
 
-    return XTGrid(
-        rows=rows, cols=cols, values=xt, shoot_prob=shoot_prob, goal_prob=goal_prob, move_prob=move_prob
-    )
+    return XTGrid(rows=rows, cols=cols, values=xt, shoot_prob=shoot_prob, goal_prob=goal_prob, move_prob=move_prob)
 
 
 def apply_xt(events: pd.DataFrame, grid: XTGrid) -> pd.DataFrame:

@@ -25,6 +25,7 @@ def data_env(tmp_path: Path, fixtures_dir: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("FA_DATA_DIR", str(data))
 
     import football_analysis.config as cfg
+
     cfg._settings = None
 
     # Ingest fixture
@@ -50,8 +51,6 @@ def test_main_page_loads(data_env: Path) -> None:
 
 
 def test_match_overview_page_loads(data_env: Path) -> None:
-    at = AppTest.from_file(
-        "src/football_analysis/app/pages/01_match_overview.py", default_timeout=60
-    )
+    at = AppTest.from_file("src/football_analysis/app/pages/01_match_overview.py", default_timeout=60)
     at.run()
     assert not at.exception, at.exception

@@ -56,9 +56,7 @@ for tid in team_ids:
             ),
             "PPDA (lower = press harder)": round(analytics.ppda.get(tid, 0.0), 2),
             "Field tilt (final-third share)": f"{analytics.field_tilt.get(tid, 0.0):.1%}",
-            "Total xT gained": round(
-                float(enriched.loc[enriched["team_id"] == tid, "xt_delta"].sum(skipna=True)), 3
-            ),
+            "Total xT gained": round(float(enriched.loc[enriched["team_id"] == tid, "xt_delta"].sum(skipna=True)), 3),
         }
     )
 

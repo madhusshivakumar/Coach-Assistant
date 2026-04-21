@@ -10,16 +10,51 @@ from football_analysis.analytics.pipeline.runner import MatchAnalytics, run
 def _events() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"team_id": "A", "action_type": "pass", "result": "success",
-             "start_x": 30.0, "start_y": 34.0, "end_x": 70.0, "end_y": 34.0},
-            {"team_id": "A", "action_type": "pass", "result": "success",
-             "start_x": 70.0, "start_y": 34.0, "end_x": 95.0, "end_y": 34.0},
-            {"team_id": "A", "action_type": "shot", "result": "success",
-             "start_x": 100.0, "start_y": 34.0, "end_x": None, "end_y": None},
-            {"team_id": "B", "action_type": "pass", "result": "success",
-             "start_x": 20.0, "start_y": 30.0, "end_x": 40.0, "end_y": 30.0},
-            {"team_id": "B", "action_type": "interception", "result": "success",
-             "start_x": 35.0, "start_y": 34.0, "end_x": None, "end_y": None},
+            {
+                "team_id": "A",
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 30.0,
+                "start_y": 34.0,
+                "end_x": 70.0,
+                "end_y": 34.0,
+            },
+            {
+                "team_id": "A",
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 70.0,
+                "start_y": 34.0,
+                "end_x": 95.0,
+                "end_y": 34.0,
+            },
+            {
+                "team_id": "A",
+                "action_type": "shot",
+                "result": "success",
+                "start_x": 100.0,
+                "start_y": 34.0,
+                "end_x": None,
+                "end_y": None,
+            },
+            {
+                "team_id": "B",
+                "action_type": "pass",
+                "result": "success",
+                "start_x": 20.0,
+                "start_y": 30.0,
+                "end_x": 40.0,
+                "end_y": 30.0,
+            },
+            {
+                "team_id": "B",
+                "action_type": "interception",
+                "result": "success",
+                "start_x": 35.0,
+                "start_y": 34.0,
+                "end_x": None,
+                "end_y": None,
+            },
         ]
     )
 
