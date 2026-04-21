@@ -1,0 +1,70 @@
+{
+  "agents": {
+    "agent-1776750751124-yfbsnv": {
+      "agentId": "agent-1776750751124-yfbsnv",
+      "agentType": "architect",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "provider": "anthropic"
+      },
+      "createdAt": "2026-04-21T05:52:31.124Z",
+      "model": "opus",
+      "modelRoutedBy": "default"
+    },
+    "agent-1776750780596-h3iaww": {
+      "agentId": "agent-1776750780596-h3iaww",
+      "agentType": "researcher",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "provider": "anthropic"
+      },
+      "createdAt": "2026-04-21T05:53:00.596Z",
+      "model": "sonnet",
+      "modelRoutedBy": "default"
+    },
+    "agent-1776750780996-g47jzj": {
+      "agentId": "agent-1776750780996-g47jzj",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "provider": "anthropic"
+      },
+      "createdAt": "2026-04-21T05:53:00.996Z",
+      "model": "sonnet",
+      "modelRoutedBy": "default"
+    },
+    "agent-1776750781417-8ifryn": {
+      "agentId": "agent-1776750781417-8ifryn",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "provider": "anthropic"
+      },
+      "createdAt": "2026-04-21T05:53:01.417Z",
+      "model": "sonnet",
+      "modelRoutedBy": "default"
+    },
+    "agent-1776750781856-02whql": {
+      "agentId": "agent-1776750781856-02whql",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "provider": "anthropic"
+      },
+      "createdAt": "2026-04-21T05:53:01.856Z",
+      "model": "sonnet",
+      "modelRoutedBy": "default"
+    }
+  },
+  "version": "3.0.0"
+}

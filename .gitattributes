@@ -1,0 +1,8 @@
+* text=auto eol=lf
+*.ps1 eol=crlf
+*.bat eol=crlf
+*.cmd eol=crlf
+*.parquet binary
+*.duckdb binary
+*.mp4 binary
+*.png binary

@@ -1,0 +1,32 @@
+# Default configuration. Override via environment variables (FA_*) or a per-user .env.
+
+pitch:
+  length_m: 105.0
+  width_m: 68.0
+  orientation: "home_left_to_right_first_half"
+
+tracking:
+  canonical_hz: 10
+  smoothing_window: 7
+  max_speed_mps: 12.0
+
+pitch_control:
+  grid_length: 104
+  grid_width: 68
+  reaction_time_s: 0.7
+  max_accel_mps2: 7.0
+
+phases:
+  transition_window_s: 6.0
+  min_phase_duration_s: 1.0
+
+formations:
+  templates:
+    - "4-3-3"
+    - "4-4-2"
+    - "4-2-3-1"
+    - "3-4-3"
+    - "3-5-2"
+    - "5-3-2"
+    - "3-2-4-1"
+  min_phase_duration_s: 5.0

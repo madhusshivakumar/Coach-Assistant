@@ -1,0 +1,10 @@
+[
+  {
+    "match_id": 1,
+    "home_team": {"home_team_id": 100, "home_team_name": "Home FC"},
+    "away_team": {"away_team_id": 999, "away_team_name": "Away FC"},
+    "match_date": "2026-01-01",
+    "competition": {"competition_id": 43, "competition_name": "FIFA World Cup"},
+    "season": {"season_id": 106, "season_name": "2022"}
+  }
+]
