@@ -4,6 +4,10 @@ Output schema matches `football_analysis.data.validation.TrackingSchema`:
 one row per (match_id, period, frame_id, player|ball), with metric 105x68 coords,
 bottom-left origin, canonical home-attacks-L->R-in-H1 orientation, and computed
 velocities via finite difference.
+
+Velocities are capped to physiologically plausible maxima so that tracking-glitch
+outliers (camera cuts, ID swaps, frame-timestamp anomalies) don't poison downstream
+pitch control / OBSO. See `PLAYER_MAX_SPEED_M_S` / `BALL_MAX_SPEED_M_S` below.
 """
 
 from __future__ import annotations
@@ -17,6 +21,12 @@ from football_analysis.analytics.pitch import PITCH_LENGTH_M, PITCH_WIDTH_M
 
 if TYPE_CHECKING:
     from kloppy.domain.models.tracking import TrackingDataset
+
+# Physiological caps. Anything beyond these is a tracking artifact
+# (camera cut, ID swap, timestamp anomaly) — we zero the velocity for that row
+# rather than propagate a 70 m/s "sprint" through pitch-control computations.
+PLAYER_MAX_SPEED_M_S: float = 12.0  # Bolt-at-100m territory; elite footballers peak ~10-11 m/s
+BALL_MAX_SPEED_M_S: float = 50.0  # Elite kicks peak ~35 m/s; 50 is a generous ceiling
 
 
 def _to_metric(x: float | None, y: float | None) -> tuple[float | None, float | None]:
@@ -122,4 +132,21 @@ def _attach_velocities(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
     df = df.drop(columns=["_group_pid"])
-    return df
+    return _cap_outliers(df)
+
+
+def _cap_outliers(df: pd.DataFrame) -> pd.DataFrame:
+    """Zero velocity rows whose speed exceeds physiologically plausible caps.
+
+    A single-frame displacement of 5 m over 0.04 s produces 125 m/s, which is nonsense.
+    Rather than clamp (which would inject a fake direction), we zero all three velocity
+    components — the downstream motion model treats that as "no information" and falls
+    back to position-only intercept time.
+    """
+    out = df.copy()
+    player_bad = (~out["is_ball"]) & (out["speed"] > PLAYER_MAX_SPEED_M_S)
+    ball_bad = out["is_ball"] & (out["speed"] > BALL_MAX_SPEED_M_S)
+    bad = player_bad | ball_bad
+    if bad.any():
+        out.loc[bad, ["vx", "vy", "speed"]] = 0.0
+    return out

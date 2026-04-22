@@ -120,21 +120,19 @@ def test_one_frame_produces_ball_plus_players() -> None:
 
 
 def test_velocities_from_successive_frames() -> None:
-    # Player moves (0.0, 0.5) -> (0.1, 0.5) in 0.04s → 10.5m/0.04s = 262 m/s? Let's
-    # use a slower move. 0.4 -> 0.5 in 0.04s: that's 10.5m * 0.1/0.4 wait let me
-    # pick (0.4, 0.5) -> (0.41, 0.5) — Δx = 0.01 * 105 = 1.05m over 0.04s = 26.25 m/s.
+    # Keep motion under the 12 m/s player cap so it isn't zeroed by the outlier filter.
+    # (0.4, 0.5) -> (0.402, 0.5): Δx = 0.002 * 105 = 0.21m over 0.04s = 5.25 m/s.
     ds = _Dataset(
         frames=[
-            _mk_frame(1, 1, 0.04, (0.5, 0.5), [("h1", "home", (0.4, 0.5))]),
-            _mk_frame(2, 1, 0.08, (0.5, 0.5), [("h1", "home", (0.41, 0.5))]),
+            _mk_frame(1, 1, 0.04, (0.5, 0.5), [("h1", "home", (0.400, 0.5))]),
+            _mk_frame(2, 1, 0.08, (0.5, 0.5), [("h1", "home", (0.402, 0.5))]),
         ]
     )
     df = tracking_dataset_to_long(ds, match_id="metrica:1")
-    # Frame 2 for player h1 should have vx ≈ 1.05 / 0.04 = 26.25
     row = df[(df["player_id"] == "h1") & (df["frame_id"] == 2)].iloc[0]
-    assert row["vx"] == pytest.approx(26.25, abs=0.01)
+    assert row["vx"] == pytest.approx(5.25, abs=0.01)
     assert row["vy"] == pytest.approx(0.0, abs=0.01)
-    assert row["speed"] == pytest.approx(26.25, abs=0.01)
+    assert row["speed"] == pytest.approx(5.25, abs=0.01)
     # First frame has no prior, velocity is 0
     first = df[(df["player_id"] == "h1") & (df["frame_id"] == 1)].iloc[0]
     assert first["vx"] == 0.0
