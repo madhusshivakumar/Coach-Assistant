@@ -35,7 +35,13 @@ class EventsSchema(pa.DataFrameModel):
 
 
 class TrackingSchema(pa.DataFrameModel):
-    """Long-form per-frame tracking table. One row per (frame, player|ball)."""
+    """Long-form per-frame tracking table. One row per (frame, player|ball).
+
+    Coordinate bounds are deliberately *looser* than the canonical pitch: tracking data
+    can legitimately record the ball outside the touchline for throw-ins/corners, and
+    players briefly step over the sideline. We allow a generous buffer and rely on
+    ``visible`` to flag off-camera rows instead of bounds-rejecting them.
+    """
 
     match_id: Series[str] = pa.Field(nullable=False)
     period: Series[int] = pa.Field(ge=1, le=5, nullable=False)
@@ -43,8 +49,8 @@ class TrackingSchema(pa.DataFrameModel):
     time_seconds: Series[float] = pa.Field(ge=0.0, nullable=False)
     player_id: Series[str] = pa.Field(nullable=True)  # null for ball rows
     team_id: Series[str] = pa.Field(nullable=True)  # null for ball rows
-    x: Series[float] = pa.Field(ge=0.0, le=PITCH_LENGTH_M, nullable=True)
-    y: Series[float] = pa.Field(ge=0.0, le=PITCH_WIDTH_M, nullable=True)
+    x: Series[float] = pa.Field(ge=-15.0, le=PITCH_LENGTH_M + 15.0, nullable=True)
+    y: Series[float] = pa.Field(ge=-15.0, le=PITCH_WIDTH_M + 15.0, nullable=True)
     is_ball: Series[bool] = pa.Field(nullable=False)
     visible: Series[bool] = pa.Field(nullable=False)
 

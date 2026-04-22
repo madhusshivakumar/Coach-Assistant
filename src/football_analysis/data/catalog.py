@@ -103,11 +103,32 @@ def ingested_matches(source: str | None = None, catalog_path: Path | None = None
 
 
 def rebuild_event_views(catalog_path: Path | None = None, processed_dir: Path | None = None) -> None:
-    """(Re)build DuckDB views that project all event Parquets as a single `events` table."""
+    """(Re)build DuckDB views over the event Parquet tree.
+
+    Silent no-op if no event parquet files exist yet (a first ingest may be tracking-only).
+    """
     pd = processed_dir or get_settings().processed_dir
-    events_glob = str(pd / "events" / "**" / "*.parquet")
+    events_root = pd / "events"
+    if not events_root.exists() or not any(events_root.rglob("*.parquet")):
+        _log.info("catalog_rebuild_events_skipped", reason="no parquet files")
+        return
+    events_glob = str(events_root / "**" / "*.parquet")
     with connect(catalog_path) as con:
         con.execute("DROP VIEW IF EXISTS events")
         # `hive_partitioning=1` ensures `competition=` and `season=` are exposed as columns.
         con.execute(f"CREATE VIEW events AS SELECT * FROM read_parquet('{events_glob}', hive_partitioning=1)")
     _log.info("catalog_rebuild_events", glob=events_glob)
+
+
+def rebuild_tracking_views(catalog_path: Path | None = None, processed_dir: Path | None = None) -> None:
+    """(Re)build DuckDB views for tracking Parquets. Silent no-op if none exist yet."""
+    pd = processed_dir or get_settings().processed_dir
+    tracking_root = pd / "tracking"
+    if not tracking_root.exists() or not any(tracking_root.rglob("*.parquet")):
+        _log.info("catalog_rebuild_tracking_skipped", reason="no parquet files")
+        return
+    tracking_glob = str(tracking_root / "**" / "*.parquet")
+    with connect(catalog_path) as con:
+        con.execute("DROP VIEW IF EXISTS tracking")
+        con.execute(f"CREATE VIEW tracking AS SELECT * FROM read_parquet('{tracking_glob}', hive_partitioning=1)")
+    _log.info("catalog_rebuild_tracking", glob=tracking_glob)

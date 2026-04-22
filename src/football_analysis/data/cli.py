@@ -25,8 +25,10 @@ from rich.table import Table
 from football_analysis.config import get_settings
 from football_analysis.data import catalog as catalog_mod
 from football_analysis.data.normalize.events_spadl import normalise_events
+from football_analysis.data.normalize.tracking import tracking_dataset_to_long
+from football_analysis.data.sources import metrica as mt
 from football_analysis.data.sources import statsbomb as sb
-from football_analysis.data.validation import EventsSchema
+from football_analysis.data.validation import EventsSchema, TrackingSchema
 from football_analysis.logging import configure_logging, get_logger
 
 SCHEMA_VERSION = "0.1.0"
@@ -73,6 +75,20 @@ def fetch_statsbomb(
         sb.load_match_events(mid, raw_dir=settings.raw_dir, force=force)
         sb.load_match_lineups(mid, raw_dir=settings.raw_dir, force=force)
     _console.print(f"[green]fetched events+lineups for {len(target_ids)} match(es)[/green]")
+
+
+@fetch_app.command("metrica")
+def fetch_metrica(
+    match_id: Annotated[int, typer.Option(help="Metrica sample match_id (1, 2, or 3)")] = 1,
+    limit: Annotated[int | None, typer.Option(help="Limit number of frames (for faster testing)")] = None,
+) -> None:
+    """Mirror a Metrica Sports sample match into `data/raw/metrica/`.
+
+    kloppy handles the HTTP fetch + CSV parse. We write a sentinel file on success.
+    """
+    settings = get_settings()
+    dataset = mt.fetch_dataset(match_id=match_id, raw_dir=settings.raw_dir, limit=limit)
+    _console.print(f"[green]fetched metrica match {match_id}: {len(dataset.frames)} frames[/green]")
 
 
 # ---------- ingest ----------
@@ -129,14 +145,47 @@ def ingest_statsbomb(
     _console.print(f"[green]ingested statsbomb:{match_id} -> {out} ({len(df)} rows)[/green]")
 
 
+@ingest_app.command("metrica")
+def ingest_metrica(
+    match_id: Annotated[int, typer.Option(help="Metrica sample match_id (1, 2, or 3)")] = 1,
+    limit: Annotated[int | None, typer.Option(help="Limit number of frames (speeds up tests)")] = None,
+    competition: Annotated[str, typer.Option(help="Human label for partitioning")] = "Metrica",
+    season: Annotated[str, typer.Option(help="Human label for partitioning")] = "sample",
+) -> None:
+    """Normalise a Metrica sample match into canonical tracking Parquet (one file per period)."""
+    settings = get_settings()
+    dataset = mt.fetch_dataset(match_id=match_id, raw_dir=settings.raw_dir, limit=limit)
+    canonical_match_id = f"metrica:{match_id}"
+
+    df = tracking_dataset_to_long(dataset, match_id=canonical_match_id)
+    if df.empty:
+        _console.print("[yellow]no frames in dataset — nothing written[/yellow]")
+        raise typer.Exit(code=1)
+
+    TrackingSchema.validate(df, lazy=True)
+
+    total_rows = 0
+    for period, period_df in df.groupby("period", sort=True):
+        out = catalog_mod.processed_tracking_path(competition, season, f"metrica-{match_id}", period=int(period))
+        out.parent.mkdir(parents=True, exist_ok=True)
+        period_df.to_parquet(out, index=False)
+        total_rows += len(period_df)
+        _console.print(f"[green]  period {period}: wrote {len(period_df)} rows to {out}[/green]")
+
+    catalog_mod.init_schema()
+    catalog_mod.record_ingest("metrica", canonical_match_id, None, SCHEMA_VERSION)
+    _console.print(f"[green]ingested {canonical_match_id} — {total_rows} tracking rows[/green]")
+
+
 # ---------- catalog ----------
 
 
 @catalog_app.command("rebuild")
 def catalog_rebuild() -> None:
-    """Recreate DuckDB views over the processed Parquet tree."""
+    """Recreate DuckDB views over the processed Parquet tree (events + tracking)."""
     catalog_mod.init_schema()
     catalog_mod.rebuild_event_views()
+    catalog_mod.rebuild_tracking_views()
     _console.print("[green]catalog rebuilt[/green]")
 
 
