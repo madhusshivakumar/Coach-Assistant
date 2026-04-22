@@ -1,4 +1,4 @@
-"""xT grid surface — visualise the learned value-of-possession grid."""
+"""xT grid surface — visualise the learned value-of-possession grid with a colorbar."""
 
 from __future__ import annotations
 
@@ -12,7 +12,12 @@ from football_analysis.viz.theme import DEFAULT_THEME, Theme
 
 
 def plot_xt_surface(grid: XTGrid, title: str | None = None, theme: Theme | None = None) -> Figure:
-    """Render the xT grid as a heatmap overlaid on a pitch."""
+    """Render the xT grid as a contour heatmap with a colorbar.
+
+    The colorbar reports xT in goal-probability units: each cell's value is the expected
+    goal contribution of possessing the ball there (Bellman-iterated shoot/move/transition).
+    An attack-direction arrow is drawn in the lower-right so the orientation is unambiguous.
+    """
     t = theme or DEFAULT_THEME
     pitch = Pitch(
         pitch_type="custom",
@@ -20,14 +25,33 @@ def plot_xt_surface(grid: XTGrid, title: str | None = None, theme: Theme | None 
         pitch_width=PITCH_WIDTH_M,
         line_color=t.pitch_line,
     )
-    fig, ax = pitch.draw(figsize=(10, 7))
+    fig, ax = pitch.draw(figsize=(11.5, 7.4))
 
     # Centres of each grid cell
-    xs = np.linspace(PITCH_LENGTH_M / grid.cols / 2, PITCH_LENGTH_M - PITCH_LENGTH_M / grid.cols / 2, grid.cols)
-    ys = np.linspace(PITCH_WIDTH_M / grid.rows / 2, PITCH_WIDTH_M - PITCH_WIDTH_M / grid.rows / 2, grid.rows)
-
+    xs = np.linspace(
+        PITCH_LENGTH_M / grid.cols / 2,
+        PITCH_LENGTH_M - PITCH_LENGTH_M / grid.cols / 2,
+        grid.cols,
+    )
+    ys = np.linspace(
+        PITCH_WIDTH_M / grid.rows / 2,
+        PITCH_WIDTH_M - PITCH_WIDTH_M / grid.rows / 2,
+        grid.rows,
+    )
     xx, yy = np.meshgrid(xs, ys)
-    ax.contourf(xx, yy, grid.values, levels=20, cmap=t.xt_cmap, alpha=0.7, zorder=0.5)
+    cs = ax.contourf(xx, yy, grid.values, levels=20, cmap=t.xt_cmap, alpha=0.75, zorder=0.5)
 
-    ax.set_title(title or f"Expected Threat surface ({grid.rows}x{grid.cols})")
+    cbar = fig.colorbar(cs, ax=ax, shrink=0.8, pad=0.02)
+    cbar.set_label("xT  (goal probability units)", rotation=90, labelpad=12)
+
+    # Attacking-direction indicator
+    ax.annotate(
+        "",
+        xy=(PITCH_LENGTH_M - 2, 2),
+        xytext=(PITCH_LENGTH_M - 22, 2),
+        arrowprops={"arrowstyle": "->", "color": t.pitch_line, "lw": 1.5},
+    )
+    ax.text(PITCH_LENGTH_M - 24, 5, "attack", fontsize=9, color=t.pitch_line)
+
+    ax.set_title(title or f"Expected Threat surface ({grid.rows}×{grid.cols}) — attack → right")
     return fig  # type: ignore[no-any-return]

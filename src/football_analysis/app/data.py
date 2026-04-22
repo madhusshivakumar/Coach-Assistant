@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -66,13 +67,12 @@ def load_match_events(match_id: str) -> pd.DataFrame:
     raise FileNotFoundError(f"no parquet for {match_id!r}")
 
 
-@st.cache_data(show_spinner=False)
-def team_names_for_match(match_id: str) -> dict[str, str]:
-    """Return {team_id -> name} for a given match by inspecting the StatsBomb matches manifest."""
+def _find_match_meta(match_id: str) -> dict[str, Any] | None:
+    """Return the raw match dict from the StatsBomb matches manifest, or None."""
     settings = get_settings()
     root = settings.raw_dir / "statsbomb" / "matches"
     if not root.exists():
-        return {}
+        return None
     mid_int = int(match_id.split(":", 1)[-1])
     for p in root.rglob("*.json"):
         try:
@@ -81,8 +81,52 @@ def team_names_for_match(match_id: str) -> dict[str, str]:
             continue
         for m in payload:
             if m.get("match_id") == mid_int:
-                return {
-                    str(m["home_team"]["home_team_id"]): m["home_team"]["home_team_name"],
-                    str(m["away_team"]["away_team_id"]): m["away_team"]["away_team_name"],
-                }
-    return {}
+                return m  # type: ignore[no-any-return]
+    return None
+
+
+@st.cache_data(show_spinner=False)
+def team_names_for_match(match_id: str) -> dict[str, str]:
+    """Return {team_id -> name} for a given match."""
+    m = _find_match_meta(match_id)
+    if m is None:
+        return {}
+    return {
+        str(m["home_team"]["home_team_id"]): m["home_team"]["home_team_name"],
+        str(m["away_team"]["away_team_id"]): m["away_team"]["away_team_name"],
+    }
+
+
+@st.cache_data(show_spinner=False)
+def home_team_id_for_match(match_id: str) -> str | None:
+    """Return the canonical home team id for a given match, or None if unknown."""
+    m = _find_match_meta(match_id)
+    if m is None:
+        return None
+    return str(m["home_team"]["home_team_id"])
+
+
+@st.cache_data(show_spinner=False)
+def player_names_for_match(match_id: str) -> dict[str, str]:
+    """Return {player_id -> player display name} from StatsBomb lineups for a match.
+
+    Uses `player_nickname` when present (commentator-friendly, e.g. "Messi"), falling back
+    to full `player_name`.
+    """
+    settings = get_settings()
+    key = match_id.split(":", 1)[-1]
+    path = settings.raw_dir / "statsbomb" / "lineups" / f"{key}.json"
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    out: dict[str, str] = {}
+    for team in payload:
+        for p in team.get("lineup", []):
+            pid = p.get("player_id")
+            if pid is None:
+                continue
+            out[str(pid)] = p.get("player_nickname") or p.get("player_name") or str(pid)
+    return out

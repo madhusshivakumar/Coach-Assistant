@@ -90,7 +90,12 @@ extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "PL", "RUF", "PTH"]
-ignore = ["PLR0913", "PLR0911", "PLR2004"]
+ignore = [
+    "PLR0913", "PLR0911", "PLR2004",
+    # RUF001/RUF002: flag "ambiguous" Unicode in strings/docstrings (e.g. en-dash, ×).
+    # We use these deliberately in user-facing plot titles/labels ("1 – 1", "12×16").
+    "RUF001", "RUF002",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["PLR2004", "S101", "PLC0415"]
