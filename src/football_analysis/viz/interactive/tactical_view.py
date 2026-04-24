@@ -36,6 +36,12 @@ _POSSESSION_RING_COLOR = "#ffd54a"
 _VELOCITY_TAIL_SECONDS: float = 0.5
 # How many past frames to include in the ball trail.
 _BALL_TRAIL_FRAMES: int = 25
+# Possession-ring hysteresis. A candidate must be at least this much closer to the
+# ball than the current holder, for at least this many consecutive frames, before
+# the ring switches. Prevents the gold ring from flickering between equidistant
+# opponents during a 50/50.
+_POSSESSION_DOMINANCE_M: float = 0.5
+_POSSESSION_STICKY_FRAMES: int = 4
 
 # Trace index layout (kept constant across every animation frame so Plotly
 # can diff them cleanly).
@@ -123,18 +129,104 @@ def _ball_trail(
     return ball["x"].tolist(), ball["y"].tolist()
 
 
-def _possession_holder(frame_df: pd.DataFrame) -> tuple[list[float], list[float], list[str]]:
-    """Find the outfielder closest to the ball. Returns xs, ys, and a label."""
+def _possession_holder(
+    frame_df: pd.DataFrame,
+    smoothed_player_id: str | None = None,
+    team_names: dict[str, str] | None = None,
+) -> tuple[list[float], list[float], list[str]]:
+    """Return the (x, y, label) for the player the gold ring should sit on.
+
+    If `smoothed_player_id` is provided (pre-computed across the full sequence with
+    hysteresis), we look that player up in the frame. Otherwise fall back to raw
+    nearest-to-ball at this instant.
+
+    `team_names` is used to resolve friendly team labels like "Argentina" instead
+    of the raw id in the hover tooltip.
+    """
     ball = frame_df[frame_df["is_ball"] & frame_df["visible"]]
     players = frame_df[~frame_df["is_ball"] & frame_df["visible"]]
     if ball.empty or players.empty:
         return [], [], []
     b = ball.iloc[0]
-    d2 = (players["x"] - b["x"]) ** 2 + (players["y"] - b["y"]) ** 2
-    idx = int(d2.idxmin())
-    row = players.loc[idx]
-    label = f"{row['team_id']} {row['player_id']}  d={float(np.sqrt(d2.loc[idx])):.1f}m"
+
+    if smoothed_player_id is not None:
+        match = players[players["player_id"] == smoothed_player_id]
+        if match.empty:
+            return [], [], []
+        row = match.iloc[0]
+        dist = float(np.sqrt((row["x"] - b["x"]) ** 2 + (row["y"] - b["y"]) ** 2))
+    else:
+        d2 = (players["x"] - b["x"]) ** 2 + (players["y"] - b["y"]) ** 2
+        idx = int(d2.idxmin())
+        row = players.loc[idx]
+        dist = float(np.sqrt(d2.loc[idx]))
+
+    team_label = (team_names or {}).get(str(row["team_id"]), str(row["team_id"]))
+    label = f"{team_label} {row['player_id']}  d={dist:.1f}m"
     return [float(row["x"])], [float(row["y"])], [label]
+
+
+def _smooth_possession_holder_across_frames(
+    tracking: pd.DataFrame,
+    frame_ids: list[int],
+    dominance_margin_m: float = _POSSESSION_DOMINANCE_M,
+    sticky_frames: int = _POSSESSION_STICKY_FRAMES,
+) -> dict[int, str | None]:
+    """Pre-compute the hysteresis-smoothed possession holder for every frame.
+
+    The ring sticks to the current holder until a different player has been closer
+    to the ball by at least `dominance_margin_m` for `sticky_frames` frames in a
+    row.
+    """
+    current_holder: str | None = None
+    streak_holder: str | None = None
+    streak_len = 0
+    out: dict[int, str | None] = {}
+
+    for fid in frame_ids:
+        fdf = tracking[tracking["frame_id"] == fid]
+        ball = fdf[fdf["is_ball"] & fdf["visible"]]
+        players = fdf[~fdf["is_ball"] & fdf["visible"]]
+        if ball.empty or players.empty:
+            out[fid] = current_holder
+            streak_len = 0
+            streak_holder = None
+            continue
+        b = ball.iloc[0]
+        dists = np.sqrt((players["x"] - b["x"]) ** 2 + (players["y"] - b["y"]) ** 2)
+        sorted_idx = dists.sort_values().index.tolist()
+        nearest_pid = str(players.loc[sorted_idx[0], "player_id"])
+        nearest_dist = float(dists.loc[sorted_idx[0]])
+        # Dominance check against *any* other player (not just an opponent; a quick
+        # pass between teammates still shouldn't yank the ring across the pitch).
+        if len(sorted_idx) > 1:
+            second_dist = float(dists.loc[sorted_idx[1]])
+        else:
+            second_dist = nearest_dist + dominance_margin_m + 1.0
+
+        candidate = nearest_pid if (second_dist - nearest_dist) >= dominance_margin_m else None
+
+        if current_holder is None:
+            # No holder yet — adopt the first dominant candidate immediately.
+            if candidate is not None:
+                current_holder = candidate
+                streak_holder = None
+                streak_len = 0
+        elif candidate == current_holder or candidate is None:
+            streak_holder = None
+            streak_len = 0
+        elif candidate == streak_holder:
+            streak_len += 1
+            if streak_len >= sticky_frames:
+                current_holder = candidate
+                streak_holder = None
+                streak_len = 0
+        else:
+            streak_holder = candidate
+            streak_len = 1
+
+        out[fid] = current_holder
+    return out
 
 
 def _empty_heatmap_trace() -> go.Heatmap:
@@ -151,6 +243,8 @@ def _frame_traces(
     pitch_control_surface: np.ndarray | None = None,
     pitch_control_xs: np.ndarray | None = None,
     pitch_control_ys: np.ndarray | None = None,
+    smoothed_holder_player_id: str | None = None,
+    team_names: dict[str, str] | None = None,
 ) -> list[go.BaseTraceType]:
     frame_df = tracking[tracking["frame_id"] == frame_id]
 
@@ -196,12 +290,14 @@ def _frame_traces(
     away = players[players["team_id"] == away_team_id]
     ball = frame_df[frame_df["is_ball"] & frame_df["visible"]]
 
+    home_label = (team_names or {}).get(str(home_team_id), "Home")
+    away_label = (team_names or {}).get(str(away_team_id), "Away")
     home_trace = go.Scattergl(
         x=home["x"],
         y=home["y"],
         mode="markers",
         marker={"size": 14, "color": _HOME_COLOR, "line": {"width": 1, "color": "black"}},
-        name="Home",
+        name=home_label,
         hovertext=home["player_id"],
         hoverinfo="text+x+y",
     )
@@ -210,7 +306,7 @@ def _frame_traces(
         y=away["y"],
         mode="markers",
         marker={"size": 14, "color": _AWAY_COLOR, "line": {"width": 1, "color": "black"}},
-        name="Away",
+        name=away_label,
         hovertext=away["player_id"],
         hoverinfo="text+x+y",
     )
@@ -223,13 +319,17 @@ def _frame_traces(
         hoverinfo="x+y",
     )
 
-    poss_x, poss_y, poss_lbl = _possession_holder(frame_df)
+    poss_x, poss_y, poss_lbl = _possession_holder(
+        frame_df,
+        smoothed_player_id=smoothed_holder_player_id,
+        team_names=team_names,
+    )
     poss_trace = go.Scatter(
         x=poss_x,
         y=poss_y,
         mode="markers",
         marker={"size": 28, "color": "rgba(0,0,0,0)", "line": {"width": 3, "color": _POSSESSION_RING_COLOR}},
-        name="nearest to ball",
+        name="ball carrier",
         hovertext=poss_lbl,
         hoverinfo="text",
         showlegend=True,
@@ -290,12 +390,14 @@ def animate(
     with_pitch_control: bool = False,
     pitch_control_rows: int = 34,
     pitch_control_cols: int = 52,
+    team_names: dict[str, str] | None = None,
 ) -> go.Figure:
     """Return a Plotly Figure with tactical overlays and an animation slider.
 
     Args:
         tracking: canonical long-form tracking DataFrame.
-        home_team_id / away_team_id: team ids in the DataFrame.
+        home_team_id / away_team_id: team ids in the DataFrame — these drive
+            which team gets the home (blue) colour, not any hardcoded string.
         frame_range: (start_frame, end_frame) inclusive; defaults to full dataset.
         title: figure title. Appended with the match clock per frame.
         with_pitch_control: pre-compute and show a per-frame pitch-control
@@ -303,6 +405,9 @@ def animate(
         pitch_control_rows / pitch_control_cols: coarser grid than analytics
             default keeps the animation smooth; 34x52 (2 m cells) is plenty for
             a visual overlay.
+        team_names: optional `{team_id: display_name}` map, e.g. for StatsBomb
+            `{"779": "Argentina", "771": "France"}`. Used for legend labels and
+            the possession-ring hover tooltip.
     """
     df = tracking
     if frame_range is not None:
@@ -329,6 +434,8 @@ def animate(
     else:
         surfaces = [None] * len(frame_ids)
 
+    smoothed_holders = _smooth_possession_holder_across_frames(df, frame_ids)
+
     initial_df = df[df["frame_id"] == frame_ids[0]]
     clock0 = _clock_text(initial_df)
     initial_traces = _frame_traces(
@@ -339,6 +446,8 @@ def animate(
         pitch_control_surface=surfaces[0],
         pitch_control_xs=pc_xs,
         pitch_control_ys=pc_ys,
+        smoothed_holder_player_id=smoothed_holders.get(frame_ids[0]),
+        team_names=team_names,
     )
 
     animation_frames: list[go.Frame] = []
@@ -355,6 +464,8 @@ def animate(
                     pitch_control_surface=surfaces[i],
                     pitch_control_xs=pc_xs,
                     pitch_control_ys=pc_ys,
+                    smoothed_holder_player_id=smoothed_holders.get(fid),
+                    team_names=team_names,
                 ),
                 name=str(fid),
                 layout={"title": f"{title or 'Tactical view'}  —  {_clock_text(fdf)}"},
