@@ -26,6 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from football_analysis.analytics.formations.corpus import build_events_corpus_profiles
 from football_analysis.analytics.formations.profile import (
     FormationProfile,
     extract_events_profile,
@@ -126,11 +127,28 @@ def render_tracking_radars(match_id: str, out_dir: Path) -> dict:
     }
 
 
-def render_events_radar(match_id: str, out_dir: Path) -> dict:
+def render_events_radar(match_id: str, out_dir: Path, corpus_dir: Path | None = None) -> dict:
     print(f"\n--- EVENTS profiles for {match_id} ---")
     events = load_events(match_id)
-    analytics = run_events_pipeline(events)
-    enriched = analytics.events
+
+    # Corpus baseline: fit one xT grid over all ingested matches and score every
+    # team-match against it. The focus match is then scored *with the same grid* so
+    # its z-scores are on the corpus scale (otherwise xT generated/conceded blow up).
+    corpus_profiles: list[FormationProfile] = []
+    corpus_grid = None
+    if corpus_dir is not None and corpus_dir.exists():
+        corpus_profiles, corpus_grid = build_events_corpus_profiles(corpus_dir)
+        print(f"  corpus baseline: {len(corpus_profiles)} (team×match) profiles from {corpus_dir}")
+
+    # Score the focus match against the corpus xT grid when available; otherwise fit
+    # in-sample. We avoid the full pipeline (PPDA/tilt are recomputed per-team below).
+    if corpus_grid is not None:
+        from football_analysis.analytics.possession_value.xt import apply_xt as _apply_xt
+
+        enriched = _apply_xt(events, corpus_grid)
+    else:
+        enriched = run_events_pipeline(events).events
+
     team_ids = sorted(t for t in enriched["team_id"].dropna().unique() if str(t).isdigit() or len(str(t)) > 0)
     if len(team_ids) < 2:
         print(f"  not enough teams in events ({team_ids})")
@@ -140,9 +158,20 @@ def render_events_radar(match_id: str, out_dir: Path) -> dict:
         extract_events_profile(enriched, home_id, away_id),
         extract_events_profile(enriched, away_id, home_id),
     ]
-    baseline = compute_baseline(profiles)
 
-    fig = plot_formation_radar(profiles, baseline, title=f"Events profile — {match_id}")
+    if len(corpus_profiles) >= 2:
+        baseline = compute_baseline(corpus_profiles)
+        baseline_kind = "corpus"
+    else:
+        baseline = compute_baseline(profiles)
+        baseline_kind = "in-sample"
+        print("  WARNING: corpus baseline unavailable, using in-sample baseline")
+
+    fig = plot_formation_radar(
+        profiles,
+        baseline,
+        title=f"Events profile — {match_id} (baseline: {baseline_kind} n={baseline.n_samples})",
+    )
     png = out_dir / "events_radar.png"
     fig.savefig(png, dpi=140, bbox_inches="tight")
     plt.close(fig)
@@ -165,6 +194,7 @@ def render_events_radar(match_id: str, out_dir: Path) -> dict:
 
     return {
         "baseline": {
+            "kind": baseline_kind,
             "means": {k: round(v, 3) for k, v in baseline.means.items()},
             "stds": {k: round(v, 3) for k, v in baseline.stds.items()},
             "n_samples": baseline.n_samples,
@@ -178,9 +208,18 @@ def main() -> None:
     p.add_argument("--tracking-match", default="metrica:1")
     p.add_argument("--events-match", default="statsbomb:3869685")
     p.add_argument("--out-dir", type=Path, default=Path("data/features/phase3b"))
+    p.add_argument(
+        "--corpus-dir",
+        type=Path,
+        default=None,
+        help="Directory of processed events parquets to use as baseline corpus. "
+        "Defaults to settings.processed_dir / events.",
+    )
     p.add_argument("--skip-tracking", action="store_true")
     p.add_argument("--skip-events", action="store_true")
     args = p.parse_args()
+    if args.corpus_dir is None:
+        args.corpus_dir = get_settings().processed_dir / "events"
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     summary: dict = {
@@ -189,7 +228,9 @@ def main() -> None:
         "tracking": {},
         "events": {},
         "limitations": [
-            "baseline = in-sample population (this match only) — not a real corpus",
+            "events corpus = WC2022 only (one tournament, one referee/style pool);"
+            " not a real cross-league baseline yet",
+            "tracking baseline still in-sample (only one tracking match ingested)",
             "tracking and events profiles are separate; no unified radar until a match"
             " with both is ingested (PFF FC pending)",
             "events-side has no phase axis (no events-only phase classifier yet)",
@@ -204,7 +245,11 @@ def main() -> None:
 
     if not args.skip_events:
         try:
-            summary["events"] = render_events_radar(args.events_match, args.out_dir)
+            summary["events"] = render_events_radar(
+                args.events_match,
+                args.out_dir,
+                corpus_dir=args.corpus_dir,
+            )
         except SystemExit as e:
             print(f"  skipped events: {e}")
 
