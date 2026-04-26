@@ -25,8 +25,12 @@ from rich.table import Table
 from football_analysis.config import get_settings
 from football_analysis.data import catalog as catalog_mod
 from football_analysis.data.normalize.events_spadl import normalise_events
+from football_analysis.data.normalize.skillcorner import skillcorner_to_long
+from football_analysis.data.normalize.soccernet import soccernet_clip_to_long
 from football_analysis.data.normalize.tracking import tracking_dataset_to_long
 from football_analysis.data.sources import metrica as mt
+from football_analysis.data.sources import skillcorner as sc
+from football_analysis.data.sources import soccernet as sn
 from football_analysis.data.sources import statsbomb as sb
 from football_analysis.data.validation import EventsSchema, TrackingSchema
 from football_analysis.logging import configure_logging, get_logger
@@ -143,6 +147,131 @@ def ingest_statsbomb(
     catalog_mod.record_ingest("statsbomb", f"statsbomb:{match_id}", src_hash, SCHEMA_VERSION)
 
     _console.print(f"[green]ingested statsbomb:{match_id} -> {out} ({len(df)} rows)[/green]")
+
+
+@fetch_app.command("skillcorner")
+def fetch_skillcorner(
+    match_id: Annotated[
+        str | None,
+        typer.Option(help="Match ID; omit to fetch all available open-data matches"),
+    ] = None,
+    force: Annotated[bool, typer.Option(help="Re-fetch even if cached")] = False,
+) -> None:
+    """Mirror SkillCorner Open Data into ``data/raw/skillcorner/``.
+
+    Tracking files are stored in Git LFS — we resolve the media URL automatically.
+    """
+    settings = get_settings()
+    ids = [match_id] if match_id else sc.list_available()
+    for mid in ids:
+        try:
+            cache = sc.fetch_match(mid, raw_dir=settings.raw_dir, force=force)
+            _console.print(f"[green]fetched skillcorner match {mid} -> {cache}[/green]")
+        except Exception as e:  # network errors should not abort the loop
+            _console.print(f"[red]failed skillcorner {mid}: {e}[/red]")
+    _console.print(f"[green]fetched {len(ids)} match(es)[/green]")
+
+
+@ingest_app.command("skillcorner")
+def ingest_skillcorner(
+    match_id: Annotated[
+        str | None,
+        typer.Option(help="Match ID; omit to ingest every fetched match"),
+    ] = None,
+    competition: Annotated[str, typer.Option(help="Human label for partitioning")] = "SkillCorner",
+    season: Annotated[str, typer.Option(help="Human label for partitioning")] = "open",
+) -> None:
+    """Normalise SkillCorner Open Data into canonical tracking Parquet."""
+    settings = get_settings()
+    ids = [match_id] if match_id else sc.list_fetched(raw_dir=settings.raw_dir)
+    if not ids:
+        _console.print("[yellow]no SkillCorner matches fetched — run `fa-data fetch skillcorner` first[/yellow]")
+        raise typer.Exit(code=1)
+
+    catalog_mod.init_schema()
+    for mid in ids:
+        try:
+            metadata, frames = sc.load_match(mid, raw_dir=settings.raw_dir)
+        except FileNotFoundError as e:
+            _console.print(f"[red]{e}[/red]")
+            continue
+        canonical_id = f"skillcorner:{mid}"
+        df = skillcorner_to_long(metadata, frames, match_id=canonical_id)
+        if df.empty:
+            _console.print(f"[yellow]  {canonical_id}: no usable frames[/yellow]")
+            continue
+
+        TrackingSchema.validate(df, lazy=True)
+        total = 0
+        for period, period_df in df.groupby("period", sort=True):
+            out = catalog_mod.processed_tracking_path(
+                competition,
+                season,
+                f"skillcorner-{mid}",
+                period=int(period),
+            )
+            out.parent.mkdir(parents=True, exist_ok=True)
+            period_df.to_parquet(out, index=False)
+            total += len(period_df)
+        catalog_mod.record_ingest("skillcorner", canonical_id, None, SCHEMA_VERSION)
+        _console.print(f"[green]  ingested {canonical_id}: {total:,} rows[/green]")
+
+
+@ingest_app.command("soccernet")
+def ingest_soccernet(
+    split: Annotated[str, typer.Option(help="SoccerNet split: test/train/valid")] = "test",
+    clip_id: Annotated[
+        str | None,
+        typer.Option(help="Specific clip name (e.g. 'SNGS-116'); omit to ingest the whole split"),
+    ] = None,
+    competition: Annotated[str, typer.Option(help="Human label for partitioning")] = "SoccerNet",
+    season: Annotated[str, typer.Option(help="Human label for partitioning")] = "gamestate-2024",
+    home_side: Annotated[
+        str,
+        typer.Option(help="Which SoccerNet side ('left' or 'right') maps to canonical 'home'"),
+    ] = "left",
+) -> None:
+    """Normalise a SoccerNet GameState 2024 split into canonical tracking Parquet.
+
+    The split zip must already be downloaded under ``data/raw/soccernet/gamestate-2024/``.
+    """
+    settings = get_settings()
+    catalog_mod.init_schema()
+    clips = [clip_id] if clip_id else sn.list_clips(split=split, raw_dir=settings.raw_dir)
+    if not clips:
+        _console.print(f"[yellow]no SoccerNet clips found for split {split!r}[/yellow]")
+        raise typer.Exit(code=1)
+
+    n_ingested = 0
+    n_skipped = 0
+    for clip_name in clips:
+        try:
+            clip_data = sn.load_clip(clip_name, split=split, raw_dir=settings.raw_dir)
+        except FileNotFoundError as e:
+            _console.print(f"[red]{e}[/red]")
+            n_skipped += 1
+            continue
+        clip_short_id = clip_name.removeprefix("SNGS-")
+        canonical_id = f"soccernet:gamestate-2024-{clip_short_id}"
+        df = soccernet_clip_to_long(clip_data, match_id=canonical_id, home_side=home_side)
+        if df.empty:
+            _console.print(f"[yellow]  {canonical_id}: no usable annotations[/yellow]")
+            n_skipped += 1
+            continue
+        TrackingSchema.validate(df, lazy=True)
+        out = catalog_mod.processed_tracking_path(
+            competition,
+            season,
+            f"soccernet-{clip_short_id}",
+            period=1,
+        )
+        out.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(out, index=False)
+        catalog_mod.record_ingest("soccernet", canonical_id, None, SCHEMA_VERSION)
+        n_ingested += 1
+        if n_ingested % 10 == 0:
+            _console.print(f"[cyan]  ... ingested {n_ingested}/{len(clips)}[/cyan]")
+    _console.print(f"[green]SoccerNet {split}: ingested={n_ingested}, skipped={n_skipped}[/green]")
 
 
 @ingest_app.command("metrica")

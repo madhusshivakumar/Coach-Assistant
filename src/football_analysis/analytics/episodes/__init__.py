@@ -28,6 +28,7 @@ from football_analysis.analytics.episodes.engine import (
     episodes_to_summary,
 )
 from football_analysis.analytics.episodes.index import EpisodeIndex, Neighbor
+from football_analysis.analytics.episodes.live import LiveEpisodeEngine, LiveSnapshot
 from football_analysis.analytics.episodes.narrative import (
     EpisodeNarrative,
     build_narrative,
@@ -55,6 +56,8 @@ __all__ = [
     "EpisodeNarrative",
     "EpisodeOutcome",
     "EpisodeRecord",
+    "LiveEpisodeEngine",
+    "LiveSnapshot",
     "Neighbor",
     "PatternCluster",
     "build_episodes",
