@@ -170,30 +170,33 @@ def render_recommendation_heatmap(
 
     fig, ax = plt.subplots(figsize=(12, 7.5), dpi=140)
     draw_pitch(ax)
-    # 2-D histogram with a hot colormap; transparent low-density cells so the
-    # pitch shows through. ~1.5 m bins (70 x 45 grid).
-    hist, xedges, yedges = np.histogram2d(
-        end_xs,
-        end_ys,
-        bins=[70, 45],
-        range=[[0, PITCH_LENGTH_M], [0, PITCH_WIDTH_M]],
-    )
-    # Mask zero bins so they're transparent over the pitch.
-    masked = np.ma.masked_equal(hist.T, 0)
+    # KDE-smoothed density rather than a raw histogram — at hundreds of points
+    # spread over a 105×68 m pitch, raw bins are too sparse to show patterns.
+    # Scott's-rule bandwidth gives a sensible default; bumped slightly for
+    # sport-pitch-scale visual smoothing.
+    from scipy.stats import gaussian_kde  # noqa: PLC0415
+
+    xy = np.column_stack([end_xs, end_ys]).T  # shape (2, N)
+    kde = gaussian_kde(xy, bw_method="scott")
+    grid_x, grid_y = np.mgrid[0 : PITCH_LENGTH_M : 200j, 0 : PITCH_WIDTH_M : 130j]  # ~0.5 m grid
+    grid_pts = np.vstack([grid_x.ravel(), grid_y.ravel()])
+    density = kde(grid_pts).reshape(grid_x.shape).T  # transpose for imshow's row-major
+    # Hide near-zero density so the pitch shows through.
+    masked = np.ma.masked_less(density, density.max() * 0.05)
     cmap = plt.cm.YlOrRd
     cmap.set_bad(alpha=0)
     im = ax.imshow(
         masked,
         origin="lower",
-        extent=(xedges[0], xedges[-1], yedges[0], yedges[-1]),
+        extent=(0, PITCH_LENGTH_M, 0, PITCH_WIDTH_M),
         cmap=cmap,
-        alpha=0.78,
+        alpha=0.85,
         zorder=4,
         interpolation="bilinear",
     )
     ax.set_title(title + f"  (n={len(end_xs)} attacks oriented +x)", fontsize=10)
     cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
-    cbar.set_label("attack-end density", fontsize=9)
+    cbar.set_label("attack-end density (KDE)", fontsize=9)
     fig.tight_layout()
     fig.savefig(out_path, bbox_inches="tight", facecolor="#0a4d28")
     plt.close(fig)
