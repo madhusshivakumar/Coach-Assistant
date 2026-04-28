@@ -35,7 +35,15 @@ SHOT_SPEED_THRESHOLD_M_S: float = 12.0
 
 @dataclass(frozen=True)
 class EpisodeOutcome:
-    """Coarse what-happened classification of one episode."""
+    """Coarse what-happened classification of one episode.
+
+    Fields ``peak_obso`` and ``decisive_obso`` are continuous outcome values added
+    in Phase 6-B and populated only when ``build_episodes(compute_obso_outcome=True)``.
+    They give recommend.py a much richer signal than the binary ``shot_like`` flag —
+    the *actual* maximum off-ball threat the attacking team built during the
+    episode, not just whether they happened to take a fast shot. Default ``None``
+    means "not computed" so existing tests/callers see no behaviour change.
+    """
 
     episode_id: int
     end_reason: str
@@ -46,6 +54,8 @@ class EpisodeOutcome:
     end_ball_y: float
     end_ball_speed: float
     duration_s: float
+    peak_obso: float | None = None
+    decisive_obso: float | None = None
 
 
 def _orient_x(x: float, attacking_to_right: bool) -> float:

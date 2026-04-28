@@ -54,6 +54,8 @@ def build_episodes(
     attacking_directions: dict[str, str] | None = None,
     snapshot_hz: float = 2.0,
     min_dead_frames: int = 5,
+    compute_obso_outcome: bool = False,
+    use_gpu: bool = False,
 ) -> list[EpisodeRecord]:
     """Build a list of ``EpisodeRecord`` for a single match.
 
@@ -65,6 +67,15 @@ def build_episodes(
             (the home-LTR-H1 convention).
         snapshot_hz: state-trajectory sample rate (per second).
         min_dead_frames: dead-ball threshold passed to the segmenter.
+        compute_obso_outcome: when True, run the OBSO trajectory for every
+            episode and populate ``outcome.peak_obso`` (max OBSO across the
+            trajectory) and ``outcome.decisive_obso`` (50%-of-peak threshold
+            crossing). Phase 6-B uses this to give recommend.py a continuous
+            outcome value. Off by default since it materially increases
+            compute time (~ms per snapshot × ~14 snapshots × N episodes).
+        use_gpu: forwarded to ``compute_obso_trajectory`` when
+            ``compute_obso_outcome=True``. With CUDA available this gives a
+            ~10-15× speedup over numpy.
 
     Returns:
         Empty list if tracking is empty or no clean possessions are found.
@@ -90,15 +101,59 @@ def build_episodes(
             attacking_to_right=attacking_to_right,
         )
         outcome = classify_outcome(ep, tracking, attacking_to_right=attacking_to_right)
-        records.append(
-            EpisodeRecord(
-                boundary=ep,
-                outcome=outcome,
-                state_trajectory=states,
-                dominant_phase=_dominant_phase(classified, ep),
-            )
+        record = EpisodeRecord(
+            boundary=ep,
+            outcome=outcome,
+            state_trajectory=states,
+            dominant_phase=_dominant_phase(classified, ep),
         )
+        if compute_obso_outcome and not states.empty:
+            record = _enrich_with_obso_outcome(record, tracking, home_team_id, away_team_id, use_gpu)
+        records.append(record)
     return records
+
+
+def _enrich_with_obso_outcome(
+    record: EpisodeRecord,
+    tracking: pd.DataFrame,
+    home_team_id: str,
+    away_team_id: str,
+    use_gpu: bool,
+) -> EpisodeRecord:
+    """Compute peak/decisive OBSO for an episode and return a new record with the
+    outcome fields populated.
+
+    Lazy-imports the trajectory module to avoid circular-import warnings (this
+    module is imported by obso_trajectory).
+    """
+    from football_analysis.analytics.episodes.obso_trajectory import (  # noqa: PLC0415
+        compute_obso_trajectory,
+        find_decisive_moment,
+    )
+
+    traj = compute_obso_trajectory(
+        record,
+        tracking,
+        home_team_id,
+        away_team_id,
+        use_gpu=use_gpu,
+    )
+    if traj.empty:
+        return record  # nothing to enrich
+    peak = float(traj["obso_max"].max())
+    decisive = find_decisive_moment(traj, threshold_pct=0.5)
+    decisive_obso = float(decisive.obso_at_decisive) if decisive is not None else None
+
+    # Outcome is frozen=True; rebuild it via dataclasses.replace.
+    from dataclasses import replace  # noqa: PLC0415
+
+    new_outcome = replace(record.outcome, peak_obso=peak, decisive_obso=decisive_obso)
+    return EpisodeRecord(
+        boundary=record.boundary,
+        outcome=new_outcome,
+        state_trajectory=record.state_trajectory,
+        dominant_phase=record.dominant_phase,
+    )
 
 
 def episodes_to_summary(records: list[EpisodeRecord]) -> pd.DataFrame:
@@ -125,6 +180,8 @@ def episodes_to_summary(records: list[EpisodeRecord]) -> pd.DataFrame:
                 "end_ball_x": r.outcome.end_ball_x,
                 "end_ball_y": r.outcome.end_ball_y,
                 "end_ball_speed": r.outcome.end_ball_speed,
+                "peak_obso": r.outcome.peak_obso,
+                "decisive_obso": r.outcome.decisive_obso,
                 "n_snapshots": len(r.state_trajectory),
             }
         )
