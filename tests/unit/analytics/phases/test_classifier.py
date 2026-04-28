@@ -295,6 +295,34 @@ def test_classify_handles_frame_with_ball_visible_but_nan_coords() -> None:
     assert out["possession_team"].iloc[0] is None or pd.isna(out["possession_team"].iloc[0])
 
 
+def test_possession_per_frame_vectorized_matches_legacy() -> None:
+    """Phase 7-E: the vectorized possession-per-frame path must agree with the
+    legacy per-frame loop on a synthetic match. Different code paths, same
+    answer — required for the 250× speedup to be safe to ship as default."""
+    from football_analysis.analytics.phases.classifier import (
+        _possession_per_frame,
+        _possession_per_frame_vectorized,
+    )
+
+    rows = []
+    for f in range(1, 50):
+        rows.extend(_frame(f, f * 0.04, ball_xy=(50.0, 34.0), possessor_team="home"))
+    for f in range(50, 100):
+        rows.extend(_frame(f, f * 0.04, ball_xy=(70.0, 34.0), possessor_team="away"))
+
+    df = pd.DataFrame(rows)
+    legacy = _possession_per_frame(df, threshold_m=2.5, dominance_margin_m=1.0)
+    vec = _possession_per_frame_vectorized(df, threshold_m=2.5, dominance_margin_m=1.0)
+    assert legacy.shape == vec.shape
+    # Compare possession_team frame-by-frame, treating None==None as a match.
+    merged = legacy[["frame_id", "possession_team"]].merge(
+        vec[["frame_id", "possession_team"]], on="frame_id", suffixes=("_l", "_v")
+    )
+    same = merged["possession_team_l"] == merged["possession_team_v"]
+    both_none = merged["possession_team_l"].isna() & merged["possession_team_v"].isna()
+    assert (same | both_none).all(), f"mismatch on {(~(same | both_none)).sum()} frames"
+
+
 def test_segment_phases_collapses_runs() -> None:
     classified = pd.DataFrame(
         {
