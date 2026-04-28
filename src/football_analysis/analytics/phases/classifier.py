@@ -79,7 +79,12 @@ def _possession_per_frame(tracking: pd.DataFrame, threshold_m: float, dominance_
     out_rows: list[dict[str, object]] = []
 
     for frame_id, fdf in tracking.groupby("frame_id", sort=True):
-        ball_rows = fdf[fdf["is_ball"] & fdf["visible"]]
+        # Ball must be visible AND have non-NaN coords. Real-world tracking
+        # sometimes flags a frame visible while the position columns are NaN
+        # (Metrica match 3 has frames with ball.visible=True but x/y=NaN);
+        # those frames must be treated as no-ball, otherwise the distance
+        # computation below produces an all-NaN series.
+        ball_rows = fdf[fdf["is_ball"] & fdf["visible"] & fdf["x"].notna() & fdf["y"].notna()]
         if ball_rows.empty:
             out_rows.append(
                 {
@@ -92,7 +97,12 @@ def _possession_per_frame(tracking: pd.DataFrame, threshold_m: float, dominance_
             )
             continue
         ball = ball_rows.iloc[0]
-        players = fdf[~fdf["is_ball"] & fdf["visible"] & fdf["team_id"].notna()].copy()
+        # Drop players with NaN coords — they can't be assigned a distance.
+        # In real-world tracking some frames have full dropouts (Metrica match 3
+        # has ~46k such frames) which would make idxmin() raise on an all-NaN series.
+        players = fdf[
+            ~fdf["is_ball"] & fdf["visible"] & fdf["team_id"].notna() & fdf["x"].notna() & fdf["y"].notna()
+        ].copy()
         if players.empty:
             out_rows.append(
                 {

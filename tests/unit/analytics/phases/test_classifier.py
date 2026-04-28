@@ -186,6 +186,115 @@ def test_classify_handles_missing_ball() -> None:
     assert out["phase"].iloc[0] == "set_piece"
 
 
+def test_classify_handles_frame_with_all_nan_player_coords() -> None:
+    """Regression: real-world tracking (Metrica match 3) has frames where
+    every player coordinate is NaN (full dropout). The old code path called
+    ``idxmin()`` on an all-NaN distance Series and raised
+    ``ValueError("Encountered all NA values")``. We now drop NaN-coord players
+    before distance computation, so the frame just gets ``possession_team=None``
+    instead of crashing the whole match.
+    """
+    rows = [
+        {
+            "frame_id": 1,
+            "period": 1,
+            "time_seconds": 0.0,
+            "player_id": "ball",
+            "team_id": None,
+            "x": 50.0,
+            "y": 34.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "is_ball": True,
+            "visible": True,
+        },
+        # All players have NaN coordinates (visible flag still True — Metrica's
+        # extrapolated tracking sometimes claims visibility while losing position).
+        {
+            "frame_id": 1,
+            "period": 1,
+            "time_seconds": 0.0,
+            "player_id": "home_1",
+            "team_id": "home",
+            "x": float("nan"),
+            "y": float("nan"),
+            "vx": 0.0,
+            "vy": 0.0,
+            "is_ball": False,
+            "visible": True,
+        },
+        {
+            "frame_id": 1,
+            "period": 1,
+            "time_seconds": 0.0,
+            "player_id": "away_1",
+            "team_id": "away",
+            "x": float("nan"),
+            "y": float("nan"),
+            "vx": 0.0,
+            "vy": 0.0,
+            "is_ball": False,
+            "visible": True,
+        },
+    ]
+    out = classify_frames(pd.DataFrame(rows), "home", "away")
+    assert len(out) == 1
+    # No clear possessor with all-NaN distances.
+    assert out["possession_team"].iloc[0] is None or pd.isna(out["possession_team"].iloc[0])
+
+
+def test_classify_handles_frame_with_ball_visible_but_nan_coords() -> None:
+    """Regression #2: a frame can have ``ball.visible=True`` while ball x/y
+    are NaN — Metrica match 3 actually does this. With NaN ball coords every
+    player distance becomes NaN, and ``idxmin()`` again raises. The classifier
+    must treat such frames the same as ball-not-visible.
+    """
+    rows = [
+        {
+            "frame_id": 1,
+            "period": 1,
+            "time_seconds": 0.0,
+            "player_id": "ball",
+            "team_id": None,
+            "x": float("nan"),
+            "y": float("nan"),
+            "vx": 0.0,
+            "vy": 0.0,
+            "is_ball": True,
+            "visible": True,
+        },
+        {
+            "frame_id": 1,
+            "period": 1,
+            "time_seconds": 0.0,
+            "player_id": "home_1",
+            "team_id": "home",
+            "x": 50.0,
+            "y": 34.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "is_ball": False,
+            "visible": True,
+        },
+        {
+            "frame_id": 1,
+            "period": 1,
+            "time_seconds": 0.0,
+            "player_id": "away_1",
+            "team_id": "away",
+            "x": 55.0,
+            "y": 34.0,
+            "vx": 0.0,
+            "vy": 0.0,
+            "is_ball": False,
+            "visible": True,
+        },
+    ]
+    out = classify_frames(pd.DataFrame(rows), "home", "away")
+    assert len(out) == 1
+    assert out["possession_team"].iloc[0] is None or pd.isna(out["possession_team"].iloc[0])
+
+
 def test_segment_phases_collapses_runs() -> None:
     classified = pd.DataFrame(
         {

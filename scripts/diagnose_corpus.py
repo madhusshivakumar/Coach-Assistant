@@ -1,3 +1,4 @@
+# ruff: noqa: PLR0915
 """Per-match diagnostic: time build_episodes on each match in the corpus
 sequentially and log how long each one takes.
 
@@ -28,10 +29,25 @@ def _timeout_handler(_signum, _frame) -> None:
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--filter", default="", help="Only test matches whose dir name contains this substring")
+    parser.add_argument("--watchdog-s", type=int, default=300, help="Per-match timeout in seconds")
+    parser.add_argument(
+        "--out-csv",
+        type=Path,
+        default=Path("data/features/diagnose_corpus.csv"),
+        help="Where to write the per-match status table",
+    )
+    args = parser.parse_args()
+
     settings = get_settings()
     root = settings.processed_dir / "tracking"
     match_dirs = sorted(root.rglob("match_id=*"))
-    out_csv = Path("data/features/diagnose_corpus.csv")
+    if args.filter:
+        match_dirs = [d for d in match_dirs if args.filter in d.name]
+    out_csv = args.out_csv
     out_csv.parent.mkdir(parents=True, exist_ok=True)
 
     rows: list[dict[str, object]] = []
@@ -59,11 +75,11 @@ def main() -> None:
         n_rows = len(df)
         n_frames = df["frame_id"].nunique()
 
-        # Watchdog: 120 s per match. POSIX-only signal, so this works on Git Bash via
-        # MinGW. On Windows native it would need threading.Timer instead.
+        # Watchdog per match (configurable). POSIX-only signal, so this works on Git
+        # Bash via MinGW. On Windows native it would need threading.Timer instead.
         if hasattr(signal, "SIGALRM"):
             signal.signal(signal.SIGALRM, _timeout_handler)
-            signal.alarm(120)
+            signal.alarm(args.watchdog_s)
         t0 = time.perf_counter()
         try:
             recs = build_episodes(df, home_team_id="home", away_team_id="away")
@@ -72,7 +88,7 @@ def main() -> None:
             n_eps = len(recs)
         except WatchdogError:
             elapsed = time.perf_counter() - t0
-            status = "TIMEOUT_120s"
+            status = f"TIMEOUT_{args.watchdog_s}s"
             n_eps = -1
         except Exception as e:
             elapsed = time.perf_counter() - t0
